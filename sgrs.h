@@ -95,7 +95,7 @@ void print_help (void);
 static void print_timing(int itern)
 {
 	int i, count, total;
-	int lat, lats[NITER];
+	int lat, lats[itern];
 	uint64_t total_tick;
 
 	total_tick = 0;
@@ -116,7 +116,7 @@ static void print_timing(int itern)
 			if (lat == lats[i]) count++;
 		}
 		total += count;
-		if (count) printf("\t%-3d : %-5d (cdf %.4f%%)\n", lat, count, (float) total * 100. / NITER);
+		if (count) printf("\t%-3d : %-5d (cdf %.4f%%)\n", lat, count, (float) total * 100. / itern);
 	}
 }
 
@@ -189,9 +189,8 @@ int opt;
 		-W, --iterW=  %#10d\n \
 		-N, --iterN=  %#10d\n \
 		-I, --IBlink= %#10d\n \ 
-		-E, --Ethlink=%#10d\n \  
-		-m, --mtu=	  %#10d\n \	   
-	", np, parameters->block_size, parameters->block_num, parameters->stride, \
+		-E, --Ethlink=%#10d\n \
+		-m, --mtu=	  %#10d\n", np, parameters->block_size, parameters->block_num, parameters->stride, \
 	  parameters->iterW, parameters->iterN, parameters->IBlink, parameters->Ethlink, \
 	parameters->mtu);
 	  
