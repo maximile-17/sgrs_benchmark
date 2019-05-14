@@ -1,5 +1,5 @@
 /*
- * simple bench with 2 procs: Send Gather Receive Scatter
+ * simple bench with 2 procs:copy and NIC DMA overhead 
  */
 #include "sgrs.h"
 
@@ -16,9 +16,6 @@ int main(int argc, char **argv)
 
 
 	// setup data layout
-/* 	block_size = BLOCK_SZ;
-	block_num  = BLOCK_N;
-	stride     = STRIDE; */
 	struct params parameters;
 	parameters.block_size =  BLOCK_SZ;
  	parameters.block_num = BLOCK_N;
@@ -154,11 +151,9 @@ int main(int argc, char **argv)
 	MPI_Sendrecv(&local_conn, sizeof(struct ib_conn), MPI_CHAR, myrank ? 0 : 1, myrank ? 1 : 0,
 	            &remote_conn, sizeof(struct ib_conn), MPI_CHAR, myrank ? 0 : 1, myrank ? 0 : 1,
 		    MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	printf("rank%d_local : LID %#04x, QPN %#06x, PSN %#06x\nrank%d_remote: LID %#04x, QPN %#06x, PSN %#06x\n",
-	      myrank,  local_conn.lid,  local_conn.qpn,  local_conn.psn,
-	      myrank, remote_conn.lid, remote_conn.qpn, remote_conn.psn);
+//	printf("rank%d_local : LID %#04x, QPN %#06x, PSN %#06x\nrank%d_remote: LID %#04x, QPN %#06x, PSN %#06x\n", myrank,  local_conn.lid,  local_conn.qpn,  local_conn.psn, myrank, remote_conn.lid, remote_conn.qpn, remote_conn.psn);
 	if(parameters.Ethlink){
-		printf("\nRank%d  local_gid: %#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x;\
+//		printf("\nRank%d  local_gid: %#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x;\
 		\nRank%d remote_gid:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x:%#2x%#2x\n",\
 		myrank, local_conn.gid[0], local_conn.gid[1], local_conn.gid[2],local_conn.gid[3],local_conn.gid[4],\
 		local_conn.gid[5],local_conn.gid[6],local_conn.gid[7],local_conn.gid[8],local_conn.gid[9],\
@@ -235,8 +230,8 @@ int main(int argc, char **argv)
 
 		unsigned char *buf;
 
-		uint64_t tick;
-
+		uint64_t tick,nictick;
+		uint64_t copytotal,nictotal;
 		int i, j, m, n;
 		int ne;
 
@@ -278,6 +273,8 @@ int main(int argc, char **argv)
 			min_tick = 0xffffffffffffffffUL;
 			max_tick = 0;
 			memset(ticks, 0, sizeof(uint64_t) * parameters.iterN);
+			memset(copyticks, 0, sizeof(uint64_t) * parameters.iterN);
+			memset(nicticks, 0, sizeof(uint64_t) * parameters.iterN);
 		}
 
 		// start iteration
@@ -303,8 +300,10 @@ int main(int argc, char **argv)
 					for (j = 0; j < parameters.block_num; j++) {
 						memcpy((unsigned char *)buf_sg + j * parameters.block_size, (unsigned char *)buf_cp + j * parameters.stride, parameters.block_size);
 					}
+					if(i>=parameters.iterW)
+						copyticks[i-parameters.iterW] = rdtsc() - tick; 
 				}
-
+				nictick = rdtsc();
 				// post send WR
 				if (ibv_post_send(qp, &sr, &bad_wr)) {
 					fprintf(stderr, "failed to post WR!\n");
@@ -322,7 +321,9 @@ int main(int argc, char **argv)
 				fprintf(stderr, "rank%d failed to execute WR!\n", myrank);
 				goto EXIT_DESTROY_QP;
 			}
-
+			if(i>=parameters.iterW)
+				nicticks[i-parameters.iterW] = rdtsc() - nictick; 
+		
 			if (myrank) {
 				// receiver verifies the buffer
 				buf = (unsigned char *)buf_sg;
@@ -359,14 +360,21 @@ int main(int argc, char **argv)
 					if (tick > max_tick) max_tick = tick;
 				}
 			}
-		}
-
+		}//end of iterations
+		
 		// print timing result
 		if (0 == myrank) {
 			printf("[%s] ", (test == SGRS) ? "sgrs" : "sr_copy");
+			copytotal = 0;
+			nictotal = 0;
+			for(j = 0; j<parameters.iterN; j++){
+				copytotal += copyticks[j];
+				nictotal += nicticks[j];
+			}
+			printf("oneside avg copy overhead: %.3f us, nic comm avg overhead: %.3f\nblock_size = %d, block_num = %d\n", (float)copytotal/parameters.iterN/TICKS_PER_USEC, (float)nictotal/parameters.iterN/TICKS_PER_USEC, parameters.block_size, parameters.block_num);
 			print_timing(parameters.iterN);
 		}
-	}
+	}//end of situation
 
 EXIT_DESTROY_QP:
 	ibv_destroy_qp(qp);

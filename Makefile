@@ -1,0 +1,30 @@
+TESTS       := sgrs
+
+MPI_PATH    = /home/mxx/opt/openmpi-4.0.0
+
+CXX         := g++
+CXXFLAGS    := -O2
+INCLUDES    := -I. -I$(MPI_PATH)/include
+LINK        := g++
+LIBRARIES   := -libverbs -L. -L$(MPI_PATH)/lib -lmpi
+LDFLAGS     := -fPIC -Wl,-rpath -Wl,\$$ORIGIN -Wl,-rpath -Wl,$(MPI_PATH)/lib
+
+
+.PHONY: all
+all: build
+	@echo -e "\033[1;32mCONSTRUCTION COMPLETE!\033[0m"
+
+.PHONY: build
+build: $(TESTS)
+
+%.o: %.c
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ -c $<
+
+$(TESTS): %: %.o
+	$(LINK) $(LDFLAGS) -o $@ $+ $(LIBRARIES)
+
+
+.PHONY: clean
+clean: 
+	rm -f *.o
+	rm -f $(TESTS)

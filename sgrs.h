@@ -23,7 +23,7 @@
 #define WITER    (1000)
 #define TICKS_PER_USEC  (2300)     // E5-2699 v3
 
-struct ib_conn {
+struct ib_conn{
 	uint32_t  lid;
 	uint32_t  qpn;
 	uint32_t  psn;
@@ -86,7 +86,7 @@ static struct ibv_recv_wr      rr;
 
 static struct ib_conn local_conn, remote_conn;
 
-static uint64_t ticks[NITER], min_tick, max_tick;
+static uint64_t ticks[NITER], min_tick, max_tick, copyticks[NITER], nicticks[NITER];
 static uint64_t rdtsc();	//use TSC to count time
 static void print_timing(int itern);
 int parser(int argc, char *const *argv, params *parameters, int np, int myid);
@@ -95,7 +95,7 @@ void print_help (void);
 static void print_timing(int itern)
 {
 	int i, count, total;
-	int lat, lats[itern];
+	int lat, lats[NITER];
 	uint64_t total_tick;
 
 	total_tick = 0;
@@ -104,7 +104,7 @@ static void print_timing(int itern)
 		lats[i] = ticks[i] / TICKS_PER_USEC;
 	}
 
-	printf("avg: %.3f us | min: %.3f us | max: %.3f us\n",
+	printf("total avg: %.3f us | min: %.3f us | max: %.3f us\n",
 	       (float) total_tick / itern / TICKS_PER_USEC,
 	       (float) min_tick / TICKS_PER_USEC,
 	       (float) max_tick / TICKS_PER_USEC);
@@ -116,7 +116,7 @@ static void print_timing(int itern)
 			if (lat == lats[i]) count++;
 		}
 		total += count;
-		if (count) printf("\t%-3d : %-5d (cdf %.4f%%)\n", lat, count, (float) total * 100. / itern);
+		if (count) printf("\t%-3d : %-5d (cdf %.4f%%)\n", lat, count, (float) total * 100. / NITER);
 	}
 }
 
@@ -188,9 +188,10 @@ int opt;
 		-s, --stride= %#10d\n \
 		-W, --iterW=  %#10d\n \
 		-N, --iterN=  %#10d\n \
-		-I, --IBlink= %#10d\n \ 
+		-I, --IBlink= %#10d\n \
 		-E, --Ethlink=%#10d\n \
-		-m, --mtu=	  %#10d\n", np, parameters->block_size, parameters->block_num, parameters->stride, \
+		-m, --mtu=    %#10d\n",\
+	 np, parameters->block_size, parameters->block_num, parameters->stride, \
 	  parameters->iterW, parameters->iterN, parameters->IBlink, parameters->Ethlink, \
 	parameters->mtu);
 	  
